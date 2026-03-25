@@ -8,9 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 安装 ffmpeg 8.0.1 静态构建
-RUN wget -q https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.0.1-linux64-gpl-8.0.tar.xz -O /tmp/ffmpeg.tar.xz && \
+RUN wget https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-master-latest-linux64-gpl.tar.xz -O /tmp/ffmpeg.tar.xz && \
     tar -xf /tmp/ffmpeg.tar.xz -C /tmp && \
-    cp /tmp/ffmpeg-n8.0.1-linux64-gpl-8.0/bin/* /usr/local/bin/ && \
+    cp /tmp/ffmpeg-master-latest-linux64-gpl/bin/* /usr/local/bin/ && \
     rm -rf /tmp/ffmpeg*
 
 WORKDIR /app

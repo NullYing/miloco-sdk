@@ -10,19 +10,25 @@ FFMPEG_MIN_VERSION = "8.0.1"
 
 
 def check_ffmpeg_version():
+    import re
+
     try:
         result = subprocess.run(["ffmpeg", "-version"], capture_output=True, text=True)
         first_line = result.stdout.split("\n")[0]
-        # e.g. "ffmpeg version 8.0.1 ..." or "ffmpeg version n8.0.1 ..."
-        version_str = first_line.split("version")[1].strip().split(" ")[0].lstrip("n")
-        current = tuple(int(x) for x in version_str.split("-")[0].split("."))
-        required = tuple(int(x) for x in FFMPEG_MIN_VERSION.split("."))
-        if current < required:
-            print(f"\033[91m警告: ffmpeg 版本 {version_str} 低于推荐版本 {FFMPEG_MIN_VERSION}，可能导致推流异常\033[0m")
+        # 匹配版本号，如 "7.1.1", "n8.0.1", "N-xxxxx-g..."
+        match = re.search(r"version\s+[nN]?(\d+\.\d+(?:\.\d+)?)", first_line)
+        if match:
+            version_str = match.group(1)
+            current = tuple(int(x) for x in version_str.split("."))
+            required = tuple(int(x) for x in FFMPEG_MIN_VERSION.split("."))
+            if current < required:
+                print(f"\033[91m警告: ffmpeg 版本 {version_str} 低于推荐版本 {FFMPEG_MIN_VERSION}，可能导致推流异常\033[0m")
+            else:
+                print(f"ffmpeg 版本: {version_str}")
         else:
-            print(f"ffmpeg 版本: {version_str}")
+            print(f"ffmpeg 版本信息: {first_line}")
     except FileNotFoundError:
-        print("\033[91m错误: 未找到 ffmpeg，请先安装 ffmpeg >= {FFMPEG_MIN_VERSION}\033[0m")
+        print(f"\033[91m错误: 未找到 ffmpeg，请先安装 ffmpeg >= {FFMPEG_MIN_VERSION}\033[0m")
 
 
 check_ffmpeg_version()
