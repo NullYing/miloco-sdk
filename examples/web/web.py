@@ -1,5 +1,6 @@
 import asyncio
 import io
+import os
 from queue import Queue
 from threading import Lock
 import sys
@@ -196,7 +197,12 @@ async def run():
         return
 
     print_device_list(online_devices)
-    index = input("请输入摄像头设备序号: ")
+    env_index = os.getenv("DEVICE_INDEX")
+    if env_index:
+        index = env_index
+        print(f"使用环境变量 DEVICE_INDEX={index}")
+    else:
+        index = input("请输入摄像头设备序号: ")
     try:
         device_info = online_devices[int(index) - 1]
     except Exception as e:
@@ -211,7 +217,7 @@ async def run():
     # 启动 web 服务器
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    site = web.TCPSite(runner, "0.0.0.0", 8180)
     await site.start()
 
     print("\nWeb 服务器已启动: http://localhost:8080")

@@ -1,0 +1,22 @@
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    network_mode: host
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
+    restart: unless-stopped
+
+  rtsp-pusher:
+    build:
+      context: ../..
+      dockerfile: examples/rtsp/Dockerfile
+    network_mode: host
+    environment:
+      - DEVICE_INDEX=${DEVICE_INDEX:-}
+    volumes:
+      - ../../data:/app/examples/rtsp/data
+    depends_on:
+      - mediamtx
+    stdin_open: true
+    tty: true
+    restart: unless-stopped
