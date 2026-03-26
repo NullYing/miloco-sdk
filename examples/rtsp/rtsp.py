@@ -98,26 +98,37 @@ async def run(enable_audio: bool = False):
 
     device_list = client.home.get_device_list()
     online_devices = [d for d in device_list if d.get("isOnline", False)]
+    
 
-    if not online_devices:
-        print("\n设备列表: 暂无在线设备")
+    camera_devices = [ d for d in online_devices if "camera" in d["model"] ]
+
+    if not camera_devices:
+        print("\n设备列表: 暂无摄像头设备")
         return
 
-    print_device_list(online_devices)
-    env_did = os.getenv("DEVICE_DID")
-    if env_did:
-        print(f"使用环境变量 DEVICE_DID={env_did}")
-        device_info = next((d for d in online_devices if d.get("did") == env_did), None)
-        if not device_info:
-            print(f"未找到 did 为 {env_did} 的在线设备")
-            return
+    
+    if len(camera_devices) == 1:
+        device_info = camera_devices[0]
+        print(f"\n检测到摄像头设备: {device_info['name']}, 正在拉流...\n")
+
     else:
-        index = input("请输入摄像头设备序号: ")
-        try:
-            device_info = online_devices[int(index) - 1]
-        except Exception as e:
-            print(f"输入错误: {e}")
-            return
+        print_device_list(camera_devices)
+        env_did = os.getenv("DEVICE_DID")
+        if env_did:
+            print(f"使用环境变量 DEVICE_DID={env_did}")
+            device_info = next((d for d in online_devices if d.get("did") == env_did), None)
+            if not device_info:
+                print(f"未找到 did 为 {env_did} 的在线设备")
+                return
+        else:
+            index = input("请输入摄像头设备序号: ")
+            try:
+                device_info = online_devices[int(index) - 1]
+            except Exception as e:
+                print(f"输入错误: {e}")
+                return
+
+        print(f"\n选中的设备: {device_info.get("name")}\n")
 
     # 校验摄像头是否在线
     status = await client.miot_camera_status.get_status_async(device_info)
@@ -352,7 +363,7 @@ async def run(enable_audio: bool = False):
     try:
         stream_kwargs = {
             "on_raw_video_callback": on_raw_video,
-            "video_quality": MIoTCameraVideoQuality.LOW,
+            "video_quality": MIoTCameraVideoQuality.HIGH,
         }
         if enable_audio:
             stream_kwargs["on_decode_pcm_callback"] = on_decode_pcm

@@ -14,7 +14,7 @@ cd examples/rtsp
 docker compose up -d
 ```
 
-3. 进入推流容器交互界面并选择设备：
+3. 进入推流容器交互界面（仅在有多台摄像头时需要选择设备）：
 
 ```bash
 docker attach rtsp-rtsp-pusher-1
