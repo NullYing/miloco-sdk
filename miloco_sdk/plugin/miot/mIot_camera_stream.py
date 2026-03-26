@@ -16,7 +16,7 @@ class MIoTCameraStream(BaseApi):
         on_decode_jpg_callback=None,
         on_raw_audio_callback=None,
         on_decode_pcm_callback=None,
-        video_quality=MIoTCameraVideoQuality.LOW # 清晰度， 默认 LOW，可改成 HIGH
+        video_quality=MIoTCameraVideoQuality.HIGH # 清晰度， 默认 LOW，可改成 HIGH
     ) -> None:
         """从小米云端获取并打印摄像头原始视频流信息。"""
         # 解析 oauth_info

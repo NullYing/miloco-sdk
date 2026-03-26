@@ -70,16 +70,17 @@ def print_device_list(device_list):
     """打印设备列表"""
 
     print("\n设备列表:")
-    separator = "-" * 70
+    separator = "-" * 94
     print(separator)
-    header = f"{pad_string('序号', 8)}{pad_string('房间', 16)}{pad_string('设备名称', 36)}"
+    header = f"{pad_string('序号', 8)}{pad_string('房间', 16)}{pad_string('设备did', 34)}{pad_string('设备名称', 36)}"
     print(header)
     print(separator)
 
     for idx, device in enumerate(device_list, 1):
         room_name = device.get("room_name", "未知")
         device_name = device.get("name", "未知")
-        row = f"{pad_string(str(idx), 8)}{pad_string(room_name, 16)}{pad_string(device_name, 36)}"
+        device_did = device.get("did", "未知")
+        row = f"{pad_string(str(idx), 8)}{pad_string(room_name, 16)}{pad_string(device_did, 34)}{pad_string(device_name, 36)}"
         print(row)
 
     print(separator)

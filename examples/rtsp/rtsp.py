@@ -104,17 +104,20 @@ async def run(enable_audio: bool = False):
         return
 
     print_device_list(online_devices)
-    env_index = os.getenv("DEVICE_INDEX")
-    if env_index:
-        index = env_index
-        print(f"使用环境变量 DEVICE_INDEX={index}")
+    env_did = os.getenv("DEVICE_DID")
+    if env_did:
+        print(f"使用环境变量 DEVICE_DID={env_did}")
+        device_info = next((d for d in online_devices if d.get("did") == env_did), None)
+        if not device_info:
+            print(f"未找到 did 为 {env_did} 的在线设备")
+            return
     else:
         index = input("请输入摄像头设备序号: ")
-    try:
-        device_info = online_devices[int(index) - 1]
-    except Exception as e:
-        print(f"输入错误: {e}")
-        return
+        try:
+            device_info = online_devices[int(index) - 1]
+        except Exception as e:
+            print(f"输入错误: {e}")
+            return
 
     # 校验摄像头是否在线
     status = await client.miot_camera_status.get_status_async(device_info)
@@ -349,7 +352,7 @@ async def run(enable_audio: bool = False):
     try:
         stream_kwargs = {
             "on_raw_video_callback": on_raw_video,
-            "video_quality": MIoTCameraVideoQuality.HIGH,
+            "video_quality": MIoTCameraVideoQuality.LOW,
         }
         if enable_audio:
             stream_kwargs["on_decode_pcm_callback"] = on_decode_pcm

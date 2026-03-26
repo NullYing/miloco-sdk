@@ -1,5 +1,6 @@
 streams:
   live: []
+  live264: "ffmpeg:live#video=h264"
 
 rtsp:
   listen: ":8554"
