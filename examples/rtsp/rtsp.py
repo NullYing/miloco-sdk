@@ -43,25 +43,6 @@ logging.getLogger("miloco_sdk.plugin.miot.camera").setLevel(logging.WARNING)
 RTSP_HOST = os.getenv("RTSP_HOST", "127.0.0.1")
 RTSP_URL = f"rtsp://{RTSP_HOST}:8554/live"
 
-"""
-使用说明：
-
-方式一：Docker 一键部署（推荐）
-1. cd examples/rtsp
-2. docker compose up -d
-3. docker attach rtsp-rtsp-pusher-1  # 进入交互界面选择设备
-4. 浏览器打开 http://127.0.0.1:1984/stream.html?src=live 观看画面
-
-方式二：手动部署
-1. 需要先启动 go2rtc：
-    - 下载：https://github.com/AlexxIT/go2rtc/releases
-    - 运行：go2rtc -config go2rtc.yaml
-2. 运行此脚本
-- python examples/rtsp/rtsp.py            # 仅视频
-- python examples/rtsp/rtsp.py --audio     # 视频 + 音频
-3. 浏览器打开 http://127.0.0.1:1984/stream.html?src=live 观看画面
-"""
-
 
 def parse_nals(data: bytes) -> list[tuple[int, bytes]]:
     """解析数据中的所有 NAL 单元，返回 [(start_offset, nal_bytes), ...]"""
