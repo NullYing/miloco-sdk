@@ -220,7 +220,7 @@ async def run():
     site = web.TCPSite(runner, "0.0.0.0", 8180)
     await site.start()
 
-    print("\nWeb 服务器已启动: http://localhost:8080")
+    print("\nWeb 服务器已启动: http://localhost:8180")
     print("请在浏览器中打开上述地址查看视频流")
 
     # 启动视频流
