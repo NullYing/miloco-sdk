@@ -39,7 +39,7 @@ from miloco_sdk.utils.types import MIoTCameraStatus, MIoTCameraVideoQuality
 
 logging.getLogger("miloco_sdk.plugin.miot.camera").setLevel(logging.WARNING)
 
-# RTSP 服务器地址（Docker 环境使用 mediamtx 容器名，本地使用 127.0.0.1）
+# RTSP 服务器地址（Docker 环境使用 go2rtc 容器名，本地使用 127.0.0.1）
 RTSP_HOST = os.getenv("RTSP_HOST", "127.0.0.1")
 RTSP_URL = f"rtsp://{RTSP_HOST}:8554/live"
 
@@ -50,26 +50,37 @@ RTSP_URL = f"rtsp://{RTSP_HOST}:8554/live"
 1. cd examples/rtsp
 2. docker compose up -d
 3. docker attach rtsp-rtsp-pusher-1  # 进入交互界面选择设备
-4. 接收画面：ffplay -fflags nobuffer -flags low_delay -framedrop rtsp://127.0.0.1:8554/live
+4. 浏览器打开 http://127.0.0.1:1984/stream.html?src=live 观看画面
 
 方式二：手动部署
-1. 需要先启动 RTSP 服务器，推荐使用 mediamtx：
-    - 下载：https://github.com/bluenviron/mediamtx/releases
-    - 运行：./mediamtx mediamtx.yml
-    - 配置文件：
-    ```mediamtx.yml
-    rtspAddress: :8554
-    paths:
-        live:
-            source: publisher
-    ```
+1. 需要先启动 go2rtc：
+    - 下载：https://github.com/AlexxIT/go2rtc/releases
+    - 运行：go2rtc -config go2rtc.yaml
 2. 运行此脚本
 - python examples/rtsp/rtsp.py            # 仅视频
 - python examples/rtsp/rtsp.py --audio     # 视频 + 音频
-
-3. 然后接收命令
-- ffplay -fflags nobuffer -flags low_delay -framedrop rtsp://127.0.0.1:8554/live
+3. 浏览器打开 http://127.0.0.1:1984/stream.html?src=live 观看画面
 """
+
+
+def parse_nals(data: bytes) -> list[tuple[int, bytes]]:
+    """解析数据中的所有 NAL 单元，返回 [(start_offset, nal_bytes), ...]"""
+    nals = []
+    offsets = []
+    i = 0
+    while i < len(data) - 3:
+        if data[i : i + 4] == b"\x00\x00\x00\x01":
+            offsets.append(i)
+            i += 4
+        elif data[i : i + 3] == b"\x00\x00\x01":
+            offsets.append(i)
+            i += 3
+        else:
+            i += 1
+    for idx, off in enumerate(offsets):
+        end = offsets[idx + 1] if idx + 1 < len(offsets) else len(data)
+        nals.append((off, data[off:end]))
+    return nals
 
 
 def detect_keyframe_and_codec(data: bytes) -> tuple[bool, str]:
@@ -174,6 +185,73 @@ async def run(enable_audio: bool = False):
     ffmpeg_proc = None
     codec = None
     frame_count = 0
+    # 缓存 VPS/SPS/PPS，确保每个 IDR 帧前都携带参数集
+    cached_parameter_sets: dict[str, bytes] = {}  # h265: VPS/SPS/PPS, h264: SPS/PPS
+
+    def inject_parameter_sets(data: bytes, codec_type: str) -> bytes:
+        """在 IDR 帧前注入缓存的 VPS/SPS/PPS 参数集，确保中途接入的客户端能解码"""
+        nals = parse_nals(data)
+        if not nals:
+            return data
+
+        has_idr = False
+        has_params = False
+
+        if codec_type == "hevc":
+            param_types = {32, 33, 34}  # VPS, SPS, PPS
+            idr_types = {19, 20}
+            for _, nal_data in nals:
+                # 跳过起始码获取 NAL header
+                if nal_data[:4] == b"\x00\x00\x00\x01":
+                    header = nal_data[4]
+                elif nal_data[:3] == b"\x00\x00\x01":
+                    header = nal_data[3]
+                else:
+                    continue
+                nal_type = (header >> 1) & 0x3F
+                if nal_type in idr_types:
+                    has_idr = True
+                if nal_type in param_types:
+                    has_params = True
+                    # 更新缓存
+                    cached_parameter_sets[f"h265_{nal_type}"] = nal_data
+        else:  # h264
+            param_types = {7, 8}  # SPS, PPS
+            idr_types = {5}
+            for _, nal_data in nals:
+                if nal_data[:4] == b"\x00\x00\x00\x01":
+                    header = nal_data[4]
+                elif nal_data[:3] == b"\x00\x00\x01":
+                    header = nal_data[3]
+                else:
+                    continue
+                nal_type = header & 0x1F
+                if nal_type in idr_types:
+                    has_idr = True
+                if nal_type in param_types:
+                    has_params = True
+                    cached_parameter_sets[f"h264_{nal_type}"] = nal_data
+
+        # IDR 帧但缺少参数集 -> 注入缓存的参数集
+        if has_idr and not has_params and cached_parameter_sets:
+            if codec_type == "hevc":
+                prefix = b""
+                for t in (32, 33, 34):  # VPS -> SPS -> PPS 顺序
+                    key = f"h265_{t}"
+                    if key in cached_parameter_sets:
+                        prefix += cached_parameter_sets[key]
+                if prefix:
+                    return prefix + data
+            else:
+                prefix = b""
+                for t in (7, 8):  # SPS -> PPS 顺序
+                    key = f"h264_{t}"
+                    if key in cached_parameter_sets:
+                        prefix += cached_parameter_sets[key]
+                if prefix:
+                    return prefix + data
+
+        return data
 
     async def on_raw_video(did: str, data: bytes, ts: int, seq: int, channel: int):
         nonlocal ffmpeg_proc, codec, frame_count
@@ -249,21 +327,17 @@ async def run(enable_audio: bool = False):
                     "ffmpeg",
                     "-hide_banner",
                     "-loglevel",
-                    "error",
-                    "-probesize",
-                    "32",
-                    "-analyzeduration",
-                    "0",
+                    "info",
                     "-fflags",
-                    "+genpts+nobuffer+discardcorrupt",
-                    "-flags",
-                    "low_delay",
+                    "+genpts+discardcorrupt",
                     "-f",
                     codec,
                     "-i",
                     "pipe:0",
                     "-c:v",
                     "copy",
+                    "-bsf:v",
+                    "extract_extradata",
                     "-an",
                     "-flush_packets",
                     "1",
@@ -275,7 +349,8 @@ async def run(enable_audio: bool = False):
                     stdin=PIPE,
                 )
 
-        # 写入 ffmpeg
+        # 注入参数集并写入 ffmpeg
+        data = inject_parameter_sets(data, codec)
         if ffmpeg_proc.stdin and not ffmpeg_proc.stdin.is_closing():
             try:
                 ffmpeg_proc.stdin.write(data)

@@ -1,9 +1,9 @@
 services:
-  mediamtx:
-    image: bluenviron/mediamtx:latest
+  go2rtc:
+    image: alexxit/go2rtc:latest
     network_mode: host
     volumes:
-      - ./mediamtx.yml:/mediamtx.yml
+      - ./go2rtc.yaml:/config/go2rtc.yaml
     restart: unless-stopped
 
   rtsp-pusher:
@@ -16,7 +16,7 @@ services:
     volumes:
       - ../../data:/app/examples/rtsp/data
     depends_on:
-      - mediamtx
+      - go2rtc
     stdin_open: true
     tty: true
     restart: unless-stopped

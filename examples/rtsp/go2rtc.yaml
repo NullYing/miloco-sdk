@@ -1,0 +1,14 @@
+streams:
+  live: []
+
+rtsp:
+  listen: ":8554"
+
+webrtc:
+  listen: ":8555"
+
+api:
+  listen: ":1984"
+
+log:
+  level: info
