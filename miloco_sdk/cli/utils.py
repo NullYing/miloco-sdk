@@ -44,6 +44,14 @@ def get_auth_info(client):
 
         if auth_info.get("created_at", 0) + auth_info.get("expires_in", 0) > int(time.time()) - 60 * 10:
             return auth_info
+        else:
+            data = client.authorize.refresh_access_token_from_mico(auth_info["refresh_token"])
+            auth_info = data["result"]
+            auth_info["created_at"] = int(time.time())
+            with open(auth_file, "w", encoding="utf-8") as f:
+                json.dump(auth_info, f, ensure_ascii=True, indent=2)
+
+        
 
     code_url = client.authorize.get_code_url()
     url = urllib.parse.urlparse(code_url)
