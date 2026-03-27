@@ -13,4 +13,4 @@ api:
   listen: ":1984"
 
 log:
-  level: debug
+  level: info
