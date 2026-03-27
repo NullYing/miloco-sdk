@@ -2,6 +2,8 @@ streams:
   live: []
   live264: # homekit
     - exec:ffmpeg -hide_banner -v error -vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -allowed_media_types video -fflags nobuffer -flags low_delay -timeout 5000000 -user_agent go2rtc/ffmpeg -rtsp_flags prefer_tcp -analyzeduration 0 -probesize 32 -i rtsp://127.0.0.1:8554/live -vf "fps=15,scale_vaapi=w=1280:h=720:format=nv12" -c:v h264_vaapi -profile:v constrained_baseline -level:v 3.1 -b:v 1200k -maxrate 1200k -bufsize 1400k -g 30 -keyint_min 30 -bf 0 -refs 1 -sei:v 0 -aud 0 -an -f rtsp -rtsp_transport tcp {output}
+  live264_macos:
+    - exec:ffmpeg -hide_banner -v error -allowed_media_types video -fflags nobuffer -flags low_delay -timeout 5000000 -user_agent go2rtc/ffmpeg -rtsp_flags prefer_tcp -analyzeduration 0 -probesize 32 -i rtsp://127.0.0.1:8554/live -vf "fps=15,scale=1280:720" -c:v h264_videotoolbox -profile:v baseline -level:v 3.1 -b:v 1200k -maxrate 1200k -bufsize 1400k -g 30 -bf 0 -refs 1 -an -f rtsp -rtsp_transport tcp {output}
 
 rtsp:
   listen: ":8554"
