@@ -5,6 +5,10 @@ services:
     volumes:
       - ./go2rtc.yaml:/config/go2rtc.yaml
     restart: unless-stopped
+    depends_on:
+      - rtsp-pusher
+    devices:
+      - /dev/dri:/dev/dri  # 挂载核显，如不需要转码H.254可以不用
 
   rtsp-pusher:
     build:
@@ -15,8 +19,7 @@ services:
       - DEVICE_INDEX=${DEVICE_INDEX:-}
     volumes:
       - ../../data:/app/examples/rtsp/data
-    depends_on:
-      - go2rtc
+
     stdin_open: true
     tty: true
     restart: unless-stopped
