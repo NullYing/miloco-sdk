@@ -1,9 +1,11 @@
 import argparse
 import asyncio
+import json
 import logging
 import os
 import subprocess
 import tempfile
+import time
 from asyncio.subprocess import PIPE, create_subprocess_exec
 
 logger = logging.getLogger(__name__)
@@ -37,6 +39,7 @@ check_ffmpeg_version()
 
 from miloco_sdk import XiaomiClient
 from miloco_sdk.cli.utils import get_auth_info, print_device_list
+from miloco_sdk.configs import DATA_PATH
 from miloco_sdk.utils.types import MIoTCameraStatus, MIoTCameraVideoQuality
 
 logging.getLogger("miloco_sdk.plugin.miot.camera").setLevel(logging.WARNING)
@@ -92,6 +95,36 @@ def detect_keyframe_and_codec(data: bytes) -> tuple[bool, str]:
         if h264_type in (5, 7, 8):
             return True, "h264"
     return False, "unknown"
+
+
+async def refresh_token_loop(client, auth_info, stream_stopped):
+    """异步定时刷新 token，在过期前 10 分钟触发"""
+    auth_file = os.path.join(DATA_PATH, "auth_info.json")
+    while not stream_stopped.is_set():
+        expires_in = auth_info.get("expires_in", 0)
+        created_at = auth_info.get("created_at", 0)
+        remaining = created_at + expires_in - int(time.time()) - 600
+        await asyncio.sleep(max(remaining, 60))
+
+        if stream_stopped.is_set():
+            break
+
+        try:
+            refresh_token = auth_info.get("refresh_token", "")
+            miot_client = client.miot_camera_stream.miot_client
+            oauth_info = await miot_client.refresh_access_token_async(refresh_token)
+
+            auth_info["access_token"] = oauth_info.access_token
+            auth_info["refresh_token"] = oauth_info.refresh_token
+            auth_info["created_at"] = int(time.time())
+            client.set_access_token(oauth_info.access_token)
+
+            with open(auth_file, "w", encoding="utf-8") as f:
+                json.dump(auth_info, f, ensure_ascii=True, indent=2)
+
+            logger.info("Token 已自动刷新")
+        except Exception as e:
+            logger.error("Token 刷新失败: %s", e)
 
 
 async def run(enable_audio: bool = False):
@@ -335,6 +368,8 @@ async def run(enable_audio: bool = False):
                     "info",
                     "-fflags",
                     "+genpts+discardcorrupt",
+                    "-use_wallclock_as_timestamps",
+                    "1",
                     "-f",
                     codec,
                     "-i",
@@ -346,6 +381,8 @@ async def run(enable_audio: bool = False):
                     "-an",
                     "-flush_packets",
                     "1",
+                    "-fps_mode",
+                    "vfr",
                     "-f",
                     "rtsp",
                     "-rtsp_transport",
@@ -379,6 +416,7 @@ async def run(enable_audio: bool = False):
     mode = "视频 + 音频" if enable_audio else "仅视频"
     logger.info("准备推流到: %s（%s）", RTSP_URL, mode)
 
+    token_task = None
     try:
         stream_kwargs = {
             "on_raw_video_callback": on_raw_video,
@@ -388,6 +426,8 @@ async def run(enable_audio: bool = False):
             stream_kwargs["on_decode_pcm_callback"] = on_decode_pcm
 
         await client.miot_camera_stream.run_stream(device_info["did"], 0, **stream_kwargs)
+
+        token_task = asyncio.create_task(refresh_token_loop(client, auth_info, stream_stopped))
 
         logger.info("开始接收摄像头数据，按 Ctrl+C 结束...")
         # 等待推流中断信号或用户中断
@@ -401,6 +441,8 @@ async def run(enable_audio: bool = False):
     except Exception as e:
         logger.error("推流失败，请检查设备与当前程序在同一局域网: %s", e)
     finally:
+        if token_task:
+            token_task.cancel()
         await client.miot_camera_stream.cleanup()
         if enable_audio:
             if audio_file:
